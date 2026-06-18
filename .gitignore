@@ -1,0 +1,11 @@
+.env
+*.zip
+backup_*/
+__pycache__/
+*.pyc
+config.enc
+secret.key
+logs/
+build/
+dist/
+*.spec

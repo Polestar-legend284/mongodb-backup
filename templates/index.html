@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MongoDB Backup System</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: #1a1d2e;
+    border-bottom: 1px solid #2d3148;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header .logo { font-size: 22px; }
+  header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+  header span { font-size: 13px; color: #64748b; margin-left: auto; }
+
+  /* ── Layout ── */
+  .container { max-width: 760px; margin: 48px auto; padding: 0 24px; }
+
+  /* ── Cards ── */
+  .card {
+    background: #1a1d2e;
+    border: 1px solid #2d3148;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: #fff; }
+
+  /* ── Wizard steps ── */
+  .steps {
+    display: flex;
+    gap: 0;
+    margin-bottom: 36px;
+    position: relative;
+  }
+  .steps::before {
+    content: "";
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    height: 2px;
+    background: #2d3148;
+    z-index: 0;
+  }
+  .step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .step-dot {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #2d3148;
+    border: 2px solid #3d4268;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; color: #64748b;
+    transition: all .3s;
+  }
+  .step.active .step-dot  { background: #6366f1; border-color: #6366f1; color: #fff; }
+  .step.done .step-dot    { background: #22c55e; border-color: #22c55e; color: #fff; }
+  .step-label { font-size: 12px; color: #64748b; text-align: center; }
+  .step.active .step-label { color: #a5b4fc; }
+  .step.done .step-label  { color: #86efac; }
+
+  /* ── Form ── */
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+
+  label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; margin-top: 16px; }
+  label:first-of-type { margin-top: 0; }
+
+  input[type="text"], input[type="password"], input[type="email"], select {
+    width: 100%;
+    padding: 10px 14px;
+    background: #0f1117;
+    border: 1px solid #2d3148;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  input:focus, select:focus { border-color: #6366f1; }
+  input::placeholder { color: #475569; }
+
+  .hint { font-size: 12px; color: #475569; margin-top: 5px; }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 12px; margin-top: 24px; }
+  button {
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .2s, transform .1s;
+  }
+  button:active { transform: scale(.98); }
+  .btn-primary   { background: #6366f1; color: #fff; }
+  .btn-secondary { background: #2d3148; color: #94a3b8; }
+  .btn-success   { background: #22c55e; color: #fff; }
+  .btn-danger    { background: #ef4444; color: #fff; }
+  .btn-outline   { background: transparent; border: 1px solid #2d3148; color: #94a3b8; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ── Test result pill ── */
+  .test-result {
+    display: none;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .test-result.ok  { background: #14532d33; border: 1px solid #22c55e44; color: #86efac; }
+  .test-result.err { background: #7f1d1d33; border: 1px solid #ef444444; color: #fca5a5; }
+
+  /* ── Dashboard ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: #0f1117;
+    border: 1px solid #2d3148;
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+  .stat-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 700; color: #fff; }
+  .stat-value.green  { color: #22c55e; }
+  .stat-value.red    { color: #ef4444; }
+  .stat-value.yellow { color: #eab308; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-green  { background: #14532d33; color: #86efac; border: 1px solid #22c55e44; }
+  .badge-red    { background: #7f1d1d33; color: #fca5a5; border: 1px solid #ef444444; }
+  .badge-yellow { background: #713f1233; color: #fde68a; border: 1px solid #eab30844; }
+
+  /* ── History table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; color: #64748b; border-bottom: 1px solid #2d3148; font-weight: 500; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1e2235; color: #94a3b8; }
+  tr:last-child td { border-bottom: none; }
+  td.success { color: #86efac; }
+  td.failed  { color: #fca5a5; }
+
+  .empty-history { text-align: center; padding: 32px; color: #475569; font-size: 14px; }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid #ffffff44;
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .running-banner {
+    background: #1e3a5f;
+    border: 1px solid #3b82f644;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #93c5fd;
+    margin-bottom: 20px;
+    display: none;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🗄️</span>
+  <h1>MongoDB Backup System</h1>
+  <span id="headerStatus">Loading...</span>
+</header>
+
+<div class="container">
+
+  <!-- ══ SETUP WIZARD ══════════════════════════════════════════ -->
+  <div id="wizardSection">
+    <div class="card" style="margin-bottom:28px;">
+      <p style="font-size:14px;color:#94a3b8;line-height:1.6;">
+        Welcome! Let's get your automated backup system set up.<br>
+        Your credentials will be <strong style="color:#a5b4fc;">encrypted and stored locally</strong> — they never leave your machine.
+      </p>
+    </div>
+
+    <!-- Step indicators -->
+    <div class="steps">
+      <div class="step active" id="si1">
+        <div class="step-dot">1</div>
+        <div class="step-label">MongoDB</div>
+      </div>
+      <div class="step" id="si2">
+        <div class="step-dot">2</div>
+        <div class="step-label">AWS S3</div>
+      </div>
+      <div class="step" id="si3">
+        <div class="step-dot">3</div>
+        <div class="step-label">Notifications</div>
+      </div>
+    </div>
+
+    <!-- Step 1: MongoDB -->
+    <div class="card step-panel active" id="panel1">
+      <h2>Step 1 — MongoDB Atlas</h2>
+
+      <label>Username</label>
+      <input type="text" id="mongoUser" placeholder="e.g. Dhruv">
+
+      <label>Password</label>
+      <input type="password" id="mongoPass" placeholder="Your MongoDB password">
+
+      <label>Cluster URI</label>
+      <input type="text" id="mongoUri" placeholder="cluster0.xxxxxx.mongodb.net">
+      <p class="hint">Just the host part — no mongodb+srv:// needed.</p>
+
+      <div id="mongoTestResult" class="test-result"></div>
+
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="testMongo()" id="btnTestMongo">Test Connection</button>
+        <button class="btn-primary" onclick="goStep(2)" id="btnNext1" disabled>Next →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: AWS S3 -->
+    <div class="card step-panel" id="panel2">
+      <h2>Step 2 — AWS S3</h2>
+
+      <label>S3 Bucket Name</label>
+      <input type="text" id="s3Bucket" placeholder="e.g. mongodb-backup-dhruv-2026">
+
+      <label>Region</label>
+      <select id="s3Region">
+        <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+        <option value="us-east-1">us-east-1 (N. Virginia)</option>
+        <option value="us-west-2">us-west-2 (Oregon)</option>
+        <option value="eu-west-1">eu-west-1 (Ireland)</option>
+        <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+      </select>
+
+      <label>AWS Access Key ID</label>
+      <input type="text" id="awsKeyId" placeholder="AKIA...">
+
+      <label>AWS Secret Access Key</label>
+      <input type="password" id="awsSecret" placeholder="Your secret key">
+
+      <div id="s3TestResult" class="test-result"></div>
+
+      <div class="btn-row">
+        <button class="btn-outline" onclick="goStep(1)">← Back</button>
+        <button class="btn-secondary" onclick="testS3()" id="btnTestS3">Test S3</button>
+        <button class="btn-primary" onclick="goStep(3)" id="btnNext2" disabled>Next →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Notifications -->
+    <div class="card step-panel" id="panel3">
+      <h2>Step 3 — Email Notifications</h2>
+      <p style="font-size:13px;color:#64748b;margin-bottom:16px;">
+        Get an email whenever a backup fails. Uses Gmail — you'll need an <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#a5b4fc;">App Password</a>.
+      </p>
+
+      <label>Your Gmail address</label>
+      <input type="email" id="gmailAddr" placeholder="you@gmail.com">
+
+      <label>Gmail App Password</label>
+      <input type="password" id="gmailPass" placeholder="16-character app password">
+      <p class="hint">Settings → Google Account → Security → App Passwords</p>
+
+      <label>Send failure alerts to</label>
+      <input type="email" id="alertEmail" placeholder="same or different email">
+
+      <div class="btn-row" style="margin-top:28px;">
+        <button class="btn-outline" onclick="goStep(2)">← Back</button>
+        <button class="btn-success" onclick="saveConfig()">Save & Start System ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DASHBOARD ══════════════════════════════════════════════ -->
+  <div id="dashSection" style="display:none;">
+
+    <div id="runningBanner" class="running-banner">
+      <span class="spinner"></span> Backup is running right now...
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">Last Backup</div>
+        <div class="stat-value" id="dLastRun" style="font-size:15px;margin-top:4px;">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Status</div>
+        <div style="margin-top:6px;" id="dStatus">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Documents Backed Up</div>
+        <div class="stat-value green" id="dDocs">—</div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      <div class="section-title">Controls</div>
+      <div class="btn-row">
+        <button class="btn-primary" onclick="runNow()" id="btnRunNow">▶ Run Backup Now</button>
+        <button class="btn-outline" onclick="resetConfig()">⚙ Reconfigure</button>
+      </div>
+      <p style="font-size:12px;color:#475569;margin-top:12px;">
+        Automatic schedule: <strong style="color:#94a3b8;">Daily at 02:00 AM</strong>
+      </p>
+    </div>
+
+    <!-- History -->
+    <div class="card">
+      <div class="section-title">Recent Runs</div>
+      <div id="historyContainer">
+        <div class="empty-history">No backups run yet.</div>
+      </div>
+    </div>
+
+    <!-- Restore -->
+    <div class="card">
+      <div class="section-title">Restore from S3</div>
+      <p style="font-size:13px;color:#64748b;margin-bottom:16px;">
+        Select a backup from your S3 bucket to restore. This will overwrite your current MongoDB data.
+      </p>
+
+      <div id="restoreLoading" style="color:#64748b;font-size:13px;">Loading backups from S3...</div>
+      <div id="restoreList" style="display:none;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px 12px;color:#64748b;border-bottom:1px solid #2d3148;">Backup File</th>
+              <th style="text-align:left;padding:8px 12px;color:#64748b;border-bottom:1px solid #2d3148;">Date</th>
+              <th style="text-align:left;padding:8px 12px;color:#64748b;border-bottom:1px solid #2d3148;">Size</th>
+              <th style="padding:8px 12px;border-bottom:1px solid #2d3148;"></th>
+            </tr>
+          </thead>
+          <tbody id="restoreTableBody"></tbody>
+        </table>
+      </div>
+      <div id="restoreEmpty" style="display:none;text-align:center;padding:24px;color:#475569;font-size:13px;">No backups found in S3.</div>
+
+      <!-- Restore progress -->
+      <div id="restoreProgress" style="display:none;margin-top:16px;">
+        <div style="background:#1e3a5f;border:1px solid #3b82f644;border-radius:8px;padding:12px 16px;font-size:13px;color:#93c5fd;">
+          <span class="spinner"></span> <span id="restoreProgressText">Starting restore...</span>
+        </div>
+      </div>
+      <div id="restoreResult" style="display:none;margin-top:12px;" class="test-result"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  let mongoOk = false;
+  let s3Ok = false;
+
+  // ── Wizard navigation ─────────────────────────────────────
+  function goStep(n) {
+    [1,2,3].forEach(i => {
+      document.getElementById(`panel${i}`).classList.toggle("active", i === n);
+      const si = document.getElementById(`si${i}`);
+      si.classList.remove("active","done");
+      if (i < n)  si.classList.add("done");
+      if (i === n) si.classList.add("active");
+    });
+  }
+
+  // ── Test MongoDB ──────────────────────────────────────────
+  async function testMongo() {
+    const btn = document.getElementById("btnTestMongo");
+    const res = document.getElementById("mongoTestResult");
+    btn.disabled = true;
+    btn.textContent = "Testing...";
+    res.style.display = "none";
+
+    const r = await fetch("/api/test-mongo", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        username: document.getElementById("mongoUser").value,
+        password: document.getElementById("mongoPass").value,
+        uri:      document.getElementById("mongoUri").value
+      })
+    }).then(x => x.json());
+
+    res.style.display = "block";
+    res.className = "test-result " + (r.ok ? "ok" : "err");
+    res.textContent = r.message;
+    mongoOk = r.ok;
+    document.getElementById("btnNext1").disabled = !r.ok;
+    btn.disabled = false;
+    btn.textContent = "Test Connection";
+  }
+
+  // ── Test S3 ───────────────────────────────────────────────
+  async function testS3() {
+    const btn = document.getElementById("btnTestS3");
+    const res = document.getElementById("s3TestResult");
+    btn.disabled = true;
+    btn.textContent = "Testing...";
+    res.style.display = "none";
+
+    const r = await fetch("/api/test-s3", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        bucket: document.getElementById("s3Bucket").value,
+        region: document.getElementById("s3Region").value,
+        key_id: document.getElementById("awsKeyId").value,
+        secret: document.getElementById("awsSecret").value
+      })
+    }).then(x => x.json());
+
+    res.style.display = "block";
+    res.className = "test-result " + (r.ok ? "ok" : "err");
+    res.textContent = r.message;
+    s3Ok = r.ok;
+    document.getElementById("btnNext2").disabled = !r.ok;
+    btn.disabled = false;
+    btn.textContent = "Test S3";
+  }
+
+  // ── Save config ───────────────────────────────────────────
+  async function saveConfig() {
+    const r = await fetch("/api/save-config", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        mongo_username: document.getElementById("mongoUser").value,
+        mongo_password: document.getElementById("mongoPass").value,
+        mongo_uri:      document.getElementById("mongoUri").value,
+        aws_bucket:     document.getElementById("s3Bucket").value,
+        aws_region:     document.getElementById("s3Region").value,
+        aws_key_id:     document.getElementById("awsKeyId").value,
+        aws_secret:     document.getElementById("awsSecret").value,
+        gmail_addr:     document.getElementById("gmailAddr").value,
+        gmail_pass:     document.getElementById("gmailPass").value,
+        alert_email:    document.getElementById("alertEmail").value,
+      })
+    }).then(x => x.json());
+
+    if (r.ok) showDashboard();
+  }
+
+  // ── Run backup now ────────────────────────────────────────
+  async function runNow() {
+    const btn = document.getElementById("btnRunNow");
+    btn.disabled = true;
+    btn.textContent = "Starting...";
+    const r = await fetch("/api/run-now", {method:"POST"}).then(x => x.json());
+    btn.textContent = r.ok ? "▶ Run Backup Now" : r.message;
+    btn.disabled = false;
+    if (r.ok) pollStatus();
+  }
+
+  // ── Reset config ──────────────────────────────────────────
+  async function resetConfig() {
+    if (!confirm("This will delete your saved credentials. Continue?")) return;
+    await fetch("/api/reset-config", {method:"POST"});
+    location.reload();
+  }
+
+  // ── Dashboard ─────────────────────────────────────────────
+  function showDashboard() {
+    document.getElementById("wizardSection").style.display = "none";
+    document.getElementById("dashSection").style.display = "block";
+    pollStatus();
+    loadRestoreList();
+  }
+
+  function renderDashboard(data) {
+    const b = data.backup;
+    document.getElementById("dLastRun").textContent = b.last_run || "Never";
+    document.getElementById("dDocs").textContent =
+      b.last_docs ? b.last_docs.toLocaleString() : "—";
+
+    const statusEl = document.getElementById("dStatus");
+    if (!b.last_result) {
+      statusEl.innerHTML = '<span class="badge badge-yellow">Not yet run</span>';
+    } else if (b.last_result === "success") {
+      statusEl.innerHTML = '<span class="badge badge-green">✓ Success</span>';
+    } else {
+      statusEl.innerHTML = '<span class="badge badge-red">✗ Failed</span>';
+    }
+
+    const banner = document.getElementById("runningBanner");
+    banner.style.display = b.running ? "block" : "none";
+    document.getElementById("btnRunNow").disabled = b.running;
+
+    document.getElementById("headerStatus").textContent =
+      b.running ? "⟳ Running..." : (b.last_run ? `Last run: ${b.last_run}` : "Ready");
+
+    // History table
+    const container = document.getElementById("historyContainer");
+    if (!b.history || b.history.length === 0) {
+      container.innerHTML = '<div class="empty-history">No backups run yet.</div>';
+      return;
+    }
+    let rows = b.history.map(h => {
+      if (h.status === "success") {
+        return `<tr>
+          <td>${h.time}</td>
+          <td class="success">✓ Success</td>
+          <td>${(h.docs||0).toLocaleString()} docs</td>
+          <td>${h.size_mb || "—"} MB</td>
+          <td>${h.elapsed_s || "—"}s</td>
+        </tr>`;
+      } else {
+        return `<tr>
+          <td>${h.time}</td>
+          <td class="failed">✗ Failed</td>
+          <td colspan="3" style="color:#fca5a5;font-size:12px;">${h.error||""}</td>
+        </tr>`;
+      }
+    }).join("");
+    container.innerHTML = `<table>
+      <thead><tr><th>Time</th><th>Result</th><th>Documents</th><th>Size</th><th>Duration</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  // ── Poll status every 3s ──────────────────────────────────
+  let pollTimer = null;
+  async function pollStatus() {
+    const data = await fetch("/api/status").then(x => x.json());
+    renderDashboard(data);
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(pollStatus, data.backup.running ? 2000 : 5000);
+  }
+
+  // ── Init ──────────────────────────────────────────────────
+  (async () => {
+    const data = await fetch("/api/status").then(x => x.json());
+    if (data.configured) {
+      showDashboard();
+    }
+  })();
+
+  // ── Restore ───────────────────────────────────────────────
+  async function loadRestoreList() {
+    const r = await fetch("/api/list-backups").then(x => x.json());
+    document.getElementById("restoreLoading").style.display = "none";
+
+    if (!r.ok || r.backups.length === 0) {
+      document.getElementById("restoreEmpty").style.display = "block";
+      return;
+    }
+
+    document.getElementById("restoreList").style.display = "block";
+    const tbody = document.getElementById("restoreTableBody");
+    tbody.innerHTML = r.backups.map(b => `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #1e2235;color:#94a3b8;font-size:12px;">${b.name}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #1e2235;color:#94a3b8;">${b.last_modified}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #1e2235;color:#94a3b8;">${b.size_mb} MB</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #1e2235;">
+          <button class="btn-danger" style="padding:6px 14px;font-size:12px;"
+            onclick="confirmRestore('${b.key}', '${b.name}')">Restore</button>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  async function confirmRestore(key, name) {
+    if (!confirm(`Restore "${name}"?\n\nThis will OVERWRITE your current MongoDB data. Make sure you have a recent backup first.`)) return;
+
+    document.getElementById("restoreProgress").style.display = "block";
+    document.getElementById("restoreResult").style.display = "none";
+    document.getElementById("restoreProgressText").textContent = "Starting restore...";
+
+    const r = await fetch("/api/restore", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({key})
+    }).then(x => x.json());
+
+    if (!r.ok) {
+      document.getElementById("restoreProgress").style.display = "none";
+      const res = document.getElementById("restoreResult");
+      res.style.display = "block";
+      res.className = "test-result err";
+      res.textContent = r.message;
+      return;
+    }
+    pollRestore();
+  }
+
+  let restorePollTimer = null;
+  async function pollRestore() {
+    const r = await fetch("/api/restore-status").then(x => x.json());
+    document.getElementById("restoreProgressText").textContent = r.progress || "Working...";
+
+    if (!r.running && r.result) {
+      document.getElementById("restoreProgress").style.display = "none";
+      const res = document.getElementById("restoreResult");
+      res.style.display = "block";
+      if (r.result.status === "success") {
+        res.className = "test-result ok";
+        res.textContent = `✓ Restore complete! ${r.result.docs.toLocaleString()} documents restored from ${r.result.source}`;
+      } else {
+        res.className = "test-result err";
+        res.textContent = `✗ Restore failed: ${r.result.error}`;
+      }
+      return;
+    }
+    restorePollTimer = setTimeout(pollRestore, 1500);
+  }
+</script>
+</body>
+</html>
